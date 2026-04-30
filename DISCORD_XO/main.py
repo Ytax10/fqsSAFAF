@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 import os
+import traceback
 from database import Database
 from game import GameManager
 from ui import MenuView
@@ -14,19 +15,41 @@ tree = app_commands.CommandTree(bot)
 
 @tree.command(name="menu", description="Главное меню игры Тетрадь")
 async def menu(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="🧮 Тетрадь по математике",
-        description="**Выберите действие:**",
-        color=0xADD8E6
-    )
-    view = MenuView(gm)
-    await interaction.response.send_message(embed=embed, view=view)
+    try:
+        embed = discord.Embed(
+            title="🧮 Тетрадь по математике",
+            description="**Выберите действие:**",
+            color=0xADD8E6
+        )
+        view = MenuView(gm)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+    except Exception as e:
+        # Выведем полную ошибку в логи Railway
+        print(f"Ошибка в /menu: {traceback.format_exc()}")
+        # Попытаемся ответить пользователю
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Произошла внутренняя ошибка. Попробуйте позже.", ephemeral=True)
+        except:
+            pass
 
 @bot.event
 async def on_ready():
-    await db.connect()
-    await tree.sync()
     print(f"Бот {bot.user} готов!")
+    try:
+        await db.connect()
+        print("База данных подключена.")
+    except Exception as e:
+        print(f"Ошибка подключения БД: {traceback.format_exc()}")
+    try:
+        synced = await tree.sync()
+        print(f"Синхронизировано {len(synced)} команд(ы): {[cmd.name for cmd in synced]}")
+    except Exception as e:
+        print(f"Ошибка синхронизации команд: {traceback.format_exc()}")
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    print(f"Ошибка в событии {event}: {traceback.format_exc()}")
 
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
