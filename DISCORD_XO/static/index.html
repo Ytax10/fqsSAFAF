@@ -12,6 +12,8 @@
         #myPiece { font-size: 40px; }
         #turnIndicator { font-size: 1.1em; margin: 10px; }
     </style>
+    <!-- Загружаем Discord SDK глобально -->
+    <script src="https://cdn.jsdelivr.net/npm/@discord/embedded-app-sdk@1.5.0/dist/index.global.js"></script>
 </head>
 <body>
 <div id="game">
@@ -20,20 +22,29 @@
     <div id="turnIndicator"></div>
     <div class="board" id="board"></div>
 </div>
-<script>
-    const CLIENT_ID = '1499106018074824837'; // <-- ЗАМЕНИТЕ НА СВОЙ
+<script type="text/javascript">
+    const CLIENT_ID = '1499106018074824837';  // Ваш ID
 
     let userId, ws, myPiece;
+
     async function init() {
-        const { DiscordSDK } = window;
-        if (!DiscordSDK) { alert('SDK не загружен'); return; }
-        const auth = await DiscordSDK.commands.authorize({
-            client_id: CLIENT_ID,
-            response_type: 'token',
-            prompt: 'none',
-            scope: ['identify']
-        });
-        userId = auth.user.id;
+        // Теперь DiscordSDK доступен глобально
+        if (typeof DiscordSDK === 'undefined') {
+            document.getElementById('info').innerText = 'SDK не загружен. Обновите страницу.';
+            return;
+        }
+        try {
+            const auth = await DiscordSDK.commands.authorize({
+                client_id: CLIENT_ID,
+                response_type: 'token',
+                prompt: 'none',
+                scope: ['identify', 'connections']
+            });
+            userId = auth.user.id;
+        } catch (e) {
+            document.getElementById('info').innerText = 'Ошибка авторизации: ' + e.message;
+            return;
+        }
         document.getElementById('info').innerText = 'Подключение к серверу...';
         connectWebSocket();
     }
