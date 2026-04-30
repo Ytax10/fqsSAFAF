@@ -164,3 +164,4 @@ class GameView(View):
         else:
             embed.add_field(name="Ходит", value=f"<@{self.game.turn}>")
         return embed
+f
