@@ -28,12 +28,13 @@ class MenuView(View):
             await interaction.response.send_message(status, ephemeral=True)
 
     async def _send_dm_to_players(self, game):
+        """Отправляет игру в ЛС всем игрокам, используя get_member (работает с members intent)."""
         guild = game.guild
         for pid in list(game.players):
             print(f"[INFO] Отправляю ЛС для {pid}")
-            member = guild.get_member(pid) or await self._fetch_member(guild, pid)
+            member = guild.get_member(pid)     # теперь точно найдётся
             if not member:
-                print(f"[ERROR] Участник {pid} не найден")
+                print(f"[ERROR] Участник {pid} не найден на сервере")
                 continue
             try:
                 view = GameView(game, self.gm, pid) if pid == game.turn else None
@@ -45,15 +46,6 @@ class MenuView(View):
                 print(f"[BLOCKED] ЛС закрыты у {member.name}")
             except Exception:
                 print(f"[EXCEPTION] Ошибка отправки ЛС для {member.name}:\n{traceback.format_exc()}")
-
-    async def _fetch_member(self, guild, pid):
-        member = guild.get_member(pid)
-        if member is None:
-            try:
-                member = await guild.fetch_member(pid)
-            except Exception:
-                pass
-        return member
 
     def _make_embed(self, game, pid):
         embed = discord.Embed(title="🧮 Тетрадь", description=game.render_board(), color=0xADD8E6)
@@ -81,18 +73,18 @@ class GameView(View):
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        # Столбцы A-P разбиты на 4 ряда по 4
+        # Столбцы A-P: 4 ряда по 4 кнопки
         cols = [chr(ord('A')+i) for i in range(16)]
         for i, col in enumerate(cols):
-            row = i // 4        # 0,1,2,3
-            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
+            row_idx = i // 4
+            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row_idx)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
 
-        # Строки 1-16 разбиты на 4 ряда по 4 (ряды с 4 по 7)
+        # Строки 1-16: 4 ряда по 4 кнопки (ряды с 4 по 7)
         for r in range(1, 17):
-            row = 4 + (r-1)//4   # 4,5,6,7
-            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
+            row_idx = 4 + (r-1)//4
+            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row_idx)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
 
@@ -134,10 +126,9 @@ class GameView(View):
             msg_id = self.game.player_messages.get(pid)
             if not msg_id:
                 continue
-            member = guild.get_member(pid)
+            member = guild.get_member(pid)    # теперь надёжно
             if not member:
-                member = await self._fetch_member(guild, pid)
-            if not member:
+                print(f"Не удалось найти участника {pid} для обновления")
                 continue
             try:
                 msg = await member.fetch_message(msg_id)
@@ -152,15 +143,6 @@ class GameView(View):
                         await msg.edit(embed=embed, view=None)
             except Exception:
                 print(f"Ошибка обновления сообщения для {pid}:\n{traceback.format_exc()}")
-
-    async def _fetch_member(self, guild, pid):
-        member = guild.get_member(pid)
-        if member is None:
-            try:
-                member = await guild.fetch_member(pid)
-            except Exception:
-                pass
-        return member
 
     def _make_embed(self):
         embed = discord.Embed(title="🧮 Тетрадь", description=self.game.render_board(), color=0xADD8E6)
