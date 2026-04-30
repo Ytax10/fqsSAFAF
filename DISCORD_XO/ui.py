@@ -17,9 +17,9 @@ class MenuView(View):
 
     @discord.ui.button(label="🎮 Играть", style=discord.ButtonStyle.success, row=0)
     async def play(self, interaction: discord.Interaction, button: Button):
-        # Передаём ID сервера, чтобы позже получить member
-        guild_id = interaction.guild_id
-        status = await self.gm.add_to_queue(interaction.user.id, guild_id)
+        # Передаём объект гильдии прямо из interaction
+        guild = interaction.guild
+        status = await self.gm.add_to_queue(interaction.user.id, guild)
         if "начинается" in status:
             await interaction.response.send_message(status)
             gid = self.gm.player_game[interaction.user.id]
@@ -29,15 +29,10 @@ class MenuView(View):
             await interaction.response.send_message(status, ephemeral=True)
 
     async def _send_dm_to_players(self, game):
-        """Отправляет доску и кнопки в ЛС, получая member через сервер."""
-        from main import bot
-        guild = bot.get_guild(game.guild_id)
-        if not guild:
-            print("[ERROR] Гильдия не найдена")
-            return
+        """Отправляет доску и кнопки в ЛС, используя гильдию из игры."""
+        guild = game.guild
         for pid in list(game.players):
             print(f"[INFO] Отправляю ЛС для {pid}")
-            # Получаем участника сервера – это надёжно
             member = guild.get_member(pid)
             if not member:
                 print(f"[ERROR] Участник {pid} не найден на сервере")
@@ -124,10 +119,7 @@ class GameView(View):
         return callback
 
     async def _update_both_messages(self):
-        from main import bot
-        guild = bot.get_guild(self.game.guild_id)
-        if not guild:
-            return
+        guild = self.game.guild
         for pid in self.game.players:
             msg_id = self.game.player_messages.get(pid)
             if not msg_id:
