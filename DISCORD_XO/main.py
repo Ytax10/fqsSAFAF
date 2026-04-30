@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 import os
+import traceback
 from database import Database
 from game import GameManager
 from ui import MenuView
@@ -32,9 +33,17 @@ async def exit_game(interaction: discord.Interaction):
 
 @bot.event
 async def on_ready():
-    await db.connect()
-    await tree.sync()
     print(f"Бот {bot.user} готов!")
+    try:
+        await db.connect()
+        print("База данных подключена")
+    except Exception as e:
+        print(f"Ошибка подключения БД: {e}")
+    try:
+        synced = await tree.sync()
+        print(f"Синхронизировано {len(synced)} команд(ы): {[cmd.name for cmd in synced]}")
+    except Exception as e:
+        print(f"Ошибка синхронизации: {traceback.format_exc()}")
 
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
