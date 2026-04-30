@@ -56,8 +56,9 @@ class Game:
         return None
 
     def render_board(self):
+        # Компактная сетка без пробелов между ячейками – не требует горизонтальной прокрутки
         header_cells = [f"[{col}]" for col in COLS]
-        header = "   " + " ".join(header_cells)
+        header = "  " + "".join(header_cells)    # два пробела вместо номеров строк
         lines = [header]
         for i in range(SIZE):
             row_cells = []
@@ -65,7 +66,7 @@ class Game:
                 pid = self.grid[i][j]
                 cell_content = self.piece_of[pid] if pid else EMPTY
                 row_cells.append(f"[{cell_content}]")
-            lines.append(f"{i+1:2} " + " ".join(row_cells))
+            lines.append(f"{i+1:2}" + "".join(row_cells))
         return "```\n" + "\n".join(lines) + "```"
 
 
