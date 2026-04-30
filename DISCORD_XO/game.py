@@ -56,18 +56,16 @@ class Game:
         return None
 
     def render_board(self):
-        NBSP = '\u00a0'  # неразрывный пробел
-        # Заголовок: каждая буква + NBSP, разделитель NBSP
-        header_cells = [f"{col}{NBSP}" for col in COLS]
-        header = "   " + NBSP.join(header_cells)  # три обычных пробела в начале
+        header_cells = [f"[{col}]" for col in COLS]
+        header = "   " + " ".join(header_cells)
         lines = [header]
         for i in range(SIZE):
             row_cells = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
-                row_cells.append(self.piece_of[pid] if pid else EMPTY)
-            # Номер строки: 2 символа + NBSP, затем клетки через NBSP
-            lines.append(f"{i+1:2}{NBSP}" + NBSP.join(row_cells))
+                cell_content = self.piece_of[pid] if pid else EMPTY
+                row_cells.append(f"[{cell_content}]")
+            lines.append(f"{i+1:2} " + " ".join(row_cells))
         return "```\n" + "\n".join(lines) + "```"
 
 
