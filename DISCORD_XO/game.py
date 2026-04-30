@@ -56,14 +56,15 @@ class Game:
         return None
 
     def render_board(self):
-        header = "   " + "  ".join(COLS)
+        THIN = '\u2009'
+        header = "   " + " ".join(f"{col}{THIN}" for col in COLS)
         lines = [header]
         for i in range(SIZE):
             row_cells = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row_cells.append(self.piece_of[pid] if pid else EMPTY)
-            lines.append(f"{i+1:2} " + " ".join(row_cells))
+            lines.append(f"{i+1:2}{THIN} " + " ".join(row_cells))
         return "```\n" + "\n".join(lines) + "```"
 
 
