@@ -7,10 +7,10 @@ PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
 class Game:
-    def __init__(self, p1_id, p2_id, gid, guild_id):
+    def __init__(self, p1_id, p2_id, gid, guild):   # <-- принимаем объект guild
         self.id = gid
         self.players = {p1_id, p2_id}
-        self.guild_id = guild_id          # <-- сохраняем, чтобы брать member
+        self.guild = guild                           # <-- сохраняем
         pieces = list(PIECES)
         random.shuffle(pieces)
         self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
@@ -66,7 +66,7 @@ class GameManager:
         self.next_id = 1
         self.db = db
 
-    async def add_to_queue(self, uid, guild_id):
+    async def add_to_queue(self, uid, guild):      # <-- принимаем guild
         if uid in self.player_game: return "Вы уже в игре"
         if uid in self.queue: return "Вы уже в очереди"
         self.queue.append(uid)
@@ -75,7 +75,7 @@ class GameManager:
             p2 = self.queue.pop(0)
             gid = self.next_id
             self.next_id += 1
-            game = Game(p1, p2, gid, guild_id)   # передаём guild_id
+            game = Game(p1, p2, gid, guild)        # <-- передаём объект
             self.games[gid] = game
             self.player_game[p1] = gid
             self.player_game[p2] = gid
