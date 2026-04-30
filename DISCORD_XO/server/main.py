@@ -1,18 +1,16 @@
 import asyncio
-import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from game import Game
 
 app = FastAPI()
 
-# Хранилища
-games: dict[int, Game] = {}
-queue = []                     # пары (user_id, websocket)
-connections: dict[str, WebSocket] = {}
+games = {}
+queue = []
+connections = {}
 next_game_id = 1
 
-# Монтируем папку static так, чтобы index.html отдавался по корню
+# Монтируем папку static в корень
 app.mount("/", StaticFiles(directory="../static", html=True), name="static")
 
 @app.websocket("/ws")
@@ -50,13 +48,12 @@ async def ws_endpoint(websocket: WebSocket):
         queue.append((user_id, websocket))
         await websocket.send_json({"type": "waiting"})
 
-async def player_loop(ws: WebSocket, user_id: str, game_id: int):
+async def player_loop(ws, user_id, game_id):
     try:
         while True:
             msg = await ws.receive_json()
             coord = msg.get("coord")
-            if not coord:
-                continue
+            if not coord: continue
             game = games.get(game_id)
             if not game:
                 await ws.send_json({"type": "error", "message": "Игра не найдена"})
@@ -73,13 +70,12 @@ async def player_loop(ws: WebSocket, user_id: str, game_id: int):
                     await connections[pid].send_json({"type": "update", "state": state})
 
             if game.winner:
-                await asyncio.sleep(0.3)
                 for pid in game.players:
                     if pid in connections:
                         await connections[pid].send_json({
                             "type": "gameover", "winner": game.winner, "state": state
                         })
-                asyncio.create_task(cleanup_game(game_id))
+                asyncio.create_task(cleanup(game_id))
                 break
     except WebSocketDisconnect:
         game = games.get(game_id)
@@ -91,11 +87,11 @@ async def player_loop(ws: WebSocket, user_id: str, game_id: int):
         for p in (game.players if game else []):
             connections.pop(p, None)
         global queue
-        queue = [(uid, w) for uid, w in queue if uid != user_id]
+        queue = [(u, w) for u, w in queue if u != user_id]
 
-async def cleanup_game(game_id):
+async def cleanup(gid):
     await asyncio.sleep(60)
-    game = games.pop(game_id, None)
+    game = games.pop(gid, None)
     if game:
         for p in game.players:
             connections.pop(p, None)

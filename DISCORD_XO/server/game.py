@@ -1,5 +1,4 @@
 import random
-from typing import Optional, List
 
 SIZE = 8
 COLUMNS = [chr(ord('A') + i) for i in range(SIZE)]
@@ -7,26 +6,25 @@ PIECES = ["🔴", "🔺", "🟩", "🔹"]
 EMPTY = "⬜"
 
 class Game:
-    def __init__(self, p1_id: str, p2_id: str, game_id: int):
+    def __init__(self, p1_id, p2_id, game_id):
         self.id = game_id
         self.players = {p1_id, p2_id}
         pieces = list(PIECES)
         random.shuffle(pieces)
         self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
-        self.grid: List[List[Optional[str]]] = [[None]*SIZE for _ in range(SIZE)]
+        self.grid = [[None]*SIZE for _ in range(SIZE)]
         self.turn = p1_id
-        self.winner: Optional[str] = None
+        self.winner = None
         self.move_count = {p1_id: 0, p2_id: 0}
 
-    def coord_to_index(self, coord: str):
-        coord = coord.upper().strip()
-        col_letter = coord[0]
+    def coord_to_index(self, coord):
+        col_letter = coord[0].upper()
         row_num = int(coord[1:])
         col = COLUMNS.index(col_letter)
         row = row_num - 1
         return row, col
 
-    def place(self, player_id: str, coord: str) -> str:
+    def place(self, player_id, coord):
         if player_id not in self.players:
             raise ValueError("Вы не в игре")
         if self.winner:
@@ -45,19 +43,11 @@ class Game:
             self.turn = other
         return self.piece_of[player_id]
 
-    def _check_win(self, player_id: str, row: int, col: int) -> bool:
-        # строка
-        if all(self.grid[row][c] == player_id for c in range(SIZE)):
-            return True
-        # столбец
-        if all(self.grid[r][col] == player_id for r in range(SIZE)):
-            return True
-        # главная диагональ
-        if row == col and all(self.grid[i][i] == player_id for i in range(SIZE)):
-            return True
-        # побочная диагональ
-        if row + col == SIZE-1 and all(self.grid[i][SIZE-1-i] == player_id for i in range(SIZE)):
-            return True
+    def _check_win(self, player_id, row, col):
+        if all(self.grid[row][c] == player_id for c in range(SIZE)): return True
+        if all(self.grid[r][col] == player_id for r in range(SIZE)): return True
+        if row == col and all(self.grid[i][i] == player_id for i in range(SIZE)): return True
+        if row + col == SIZE-1 and all(self.grid[i][SIZE-1-i] == player_id for i in range(SIZE)): return True
         return False
 
     def board_array(self):

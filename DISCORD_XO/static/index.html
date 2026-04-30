@@ -20,12 +20,10 @@
     <div id="turnIndicator"></div>
     <div class="board" id="board"></div>
 </div>
-
 <script>
-    const CLIENT_ID = '1499106018074824837'; // <-- замените!
+    const CLIENT_ID = '1499106018074824837'; // <-- ЗАМЕНИТЕ НА СВОЙ
 
-    let userId, ws, myPiece, gameState;
-
+    let userId, ws, myPiece;
     async function init() {
         const { DiscordSDK } = window;
         if (!DiscordSDK) { alert('SDK не загружен'); return; }
@@ -41,8 +39,8 @@
     }
 
     function connectWebSocket() {
-        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${location.host}/ws`);
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${proto}//${location.host}/ws`);
         ws.onopen = () => ws.send(JSON.stringify({ user_id: userId }));
         ws.onmessage = e => handleMessage(JSON.parse(e.data));
         ws.onclose = () => document.getElementById('info').innerText = 'Соединение потеряно';
@@ -77,7 +75,6 @@
     }
 
     function updateUI(state) {
-        gameState = state;
         const board = document.getElementById('board');
         board.innerHTML = '';
         for (let i = 0; i < 8; i++) {
