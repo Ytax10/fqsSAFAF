@@ -77,16 +77,16 @@ class Game:
         return True
 
     def render_board(self):
-        # Заголовок: 4 пробела, затем буквы через двойной пробел
-        header = "    " + "  ".join(COLS)
+        # Заголовок: 3 пробела, затем буквы через два пробела, в конце 2 пробела (общая длина 51)
+        header = "   " + "  ".join(COLS) + "  "
         lines = [header]
         for i in range(SIZE):
             row_emojis = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row_emojis.append(self.piece_of[pid] if pid else EMPTY)
-            # Строка: номер строки (2 символа) + пробел + клетки через пробел
-            line = f"{i+1:2} " + " ".join(row_emojis)
+            # Строка: номер (2 символа) + пробел + эмодзи через пробел + доп. пробел в конце (длина 51)
+            line = f"{i+1:2} " + " ".join(row_emojis) + " "
             lines.append(line)
         return "```\n" + "\n".join(lines) + "```"
 
