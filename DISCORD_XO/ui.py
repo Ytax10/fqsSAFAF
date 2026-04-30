@@ -56,7 +56,7 @@ class MenuView(View):
         return member
 
     def _make_embed(self, game, pid):
-        embed = discord.Embed(title="🧮 Тетрадь 16×16", description=game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь", description=game.render_board(), color=0xADD8E6)
         embed.add_field(name="Ваша фигура", value=game.piece_of[pid])
         if game.winner:
             embed.add_field(name="Победитель", value=f"<@{game.winner}>")
@@ -75,22 +75,23 @@ class MenuView(View):
 
 class GameView(View):
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=600)  # 10 минут без ходов → автоочистка
+        super().__init__(timeout=600)
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        # Столбцы A-P, размещаем по 4 в ряд: row 0-3
-        for i, col in enumerate(["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P"]):
-            row = i // 4
+        # Столбцы A-P разбиты на 4 ряда по 4
+        cols = [chr(ord('A')+i) for i in range(16)]
+        for i, col in enumerate(cols):
+            row = i // 4        # 0,1,2,3
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
 
-        # Строки 1-16, по 4 в ряд: row 4-7
+        # Строки 1-16 разбиты на 4 ряда по 4 (ряды с 4 по 7)
         for r in range(1, 17):
-            row = 4 + (r-1) // 4
+            row = 4 + (r-1)//4   # 4,5,6,7
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
@@ -162,7 +163,7 @@ class GameView(View):
         return member
 
     def _make_embed(self):
-        embed = discord.Embed(title="🧮 Тетрадь 16×16", description=self.game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь", description=self.game.render_board(), color=0xADD8E6)
         if self.game.winner:
             embed.add_field(name="Победитель", value=f"<@{self.game.winner}>")
         else:
