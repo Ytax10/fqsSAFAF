@@ -1,5 +1,5 @@
 import discord
-from discord.ui import View, Button
+from discord.ui import View, Select, Button
 import traceback
 
 class MenuView(View):
@@ -56,7 +56,7 @@ class MenuView(View):
         return member
 
     def _make_embed(self, game, pid):
-        embed = discord.Embed(title="🧮 Тетрадь", description=game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь (16×16)", description=game.render_board(), color=0xADD8E6)
         embed.add_field(name="Ваша фигура", value=game.piece_of[pid])
         if game.winner:
             embed.add_field(name="Победитель", value=f"<@{game.winner}>")
@@ -67,7 +67,7 @@ class MenuView(View):
     @discord.ui.button(label="❓ Правила", style=discord.ButtonStyle.secondary, row=0)
     async def rules(self, interaction: discord.Interaction, button: Button):
         text = ("**Правила**\n• Поле 16×16\n• У каждого своя фигура: 🔴🔺🟩🔹\n"
-                "• Ходите по очереди, выбирая клетку кнопками\n"
+                "• Ходите по очереди, выбирая клетку в выпадающих меню\n"
                 "• Победит тот, кто первым заполнит строку, столбец или диагональ")
         embed = discord.Embed(title="📖 Правила", description=text, color=0xADD8E6)
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -80,50 +80,66 @@ class GameView(View):
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
+        self.selected_row = None
 
-        # Столбцы: 4 ряда по 4 кнопки (A-D, E-H, I-L, M-P)
-        cols = [chr(ord('A')+i) for i in range(16)]
-        for i, col in enumerate(cols):
-            row = i // 4          # 0,1,2,3
-            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
-            btn.callback = self.col_callback(col)
-            self.add_item(btn)
+        # Выпадающий список для столбца
+        col_select = Select(
+            placeholder="Выберите столбец (A–P)",
+            options=[discord.SelectOption(label=col, value=col) for col in COLS[:16]],
+            row=0
+        )
+        col_select.callback = self.col_select_callback
+        self.add_item(col_select)
 
-        # Строки: 4 ряда по 4 кнопки (1-4, 5-8, 9-12, 13-16)
-        for i in range(16):
-            r = i + 1
-            row = 4 + i // 4      # 4,5,6,7
-            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
-            btn.callback = self.row_callback(r)
-            self.add_item(btn)
+        # Выпадающий список для строки
+        row_select = Select(
+            placeholder="Выберите строку (1–16)",
+            options=[discord.SelectOption(label=str(r), value=str(r)) for r in range(1, 17)],
+            row=1
+        )
+        row_select.callback = self.row_select_callback
+        self.add_item(row_select)
 
-    def col_callback(self, col):
-        async def callback(interaction: discord.Interaction):
-            if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
-                return await interaction.response.send_message("Не ваш ход", ephemeral=True)
-            self.selected_col = col
+    async def col_select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
+            return await interaction.response.send_message("Не ваш ход", ephemeral=True)
+        self.selected_col = interaction.data["values"][0]
+        await interaction.response.defer()
+        # Если строка уже выбрана, совершаем ход
+        if self.selected_row is not None:
+            await self._try_move(interaction)
+        else:
+            # Просто обновим сообщение с подсказкой
             embed = self._make_embed()
-            embed.set_footer(text=f"Выбран столбец {col}. Выберите строку.")
-            await interaction.response.edit_message(embed=embed, view=self)
-        return callback
+            embed.set_footer(text=f"Выбран столбец {self.selected_col}. Выберите строку.")
+            await interaction.edit_original_response(embed=embed, view=self)
 
-    def row_callback(self, row):
-        async def callback(interaction: discord.Interaction):
-            if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
-                return await interaction.response.send_message("Не ваш ход", ephemeral=True)
-            if self.selected_col is None:
-                return await interaction.response.send_message("Сначала выберите столбец", ephemeral=True)
-            coord = f"{self.selected_col}{row}"
-            self.selected_col = None
-            result, game = await self.gm.make_move(interaction.user.id, coord)
-            await self._update_both_messages()
-            if game and game.winner:
-                self.stop()
-                self.gm.end_game(self.game.id)
-                await interaction.response.edit_message(content="Игра окончена!", embed=self._make_embed(), view=None)
-            else:
-                await interaction.response.edit_message(content=result, embed=self._make_embed(), view=self)
-        return callback
+    async def row_select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
+            return await interaction.response.send_message("Не ваш ход", ephemeral=True)
+        self.selected_row = int(interaction.data["values"][0])
+        await interaction.response.defer()
+        if self.selected_col is not None:
+            await self._try_move(interaction)
+        else:
+            embed = self._make_embed()
+            embed.set_footer(text=f"Выбрана строка {self.selected_row}. Выберите столбец.")
+            await interaction.edit_original_response(embed=embed, view=self)
+
+    async def _try_move(self, interaction: discord.Interaction):
+        coord = f"{self.selected_col}{self.selected_row}"
+        # Сбрасываем выбранные значения для следующего хода
+        self.selected_col = None
+        self.selected_row = None
+        result, game = await self.gm.make_move(interaction.user.id, coord)
+        # Обновляем оба сообщения
+        await self._update_both_messages()
+        if game and game.winner:
+            self.gm.end_game(self.game.id)
+            await interaction.edit_original_response(content="Игра окончена!", embed=self._make_embed(), view=None)
+            self.stop()
+        else:
+            await interaction.edit_original_response(content=result, embed=self._make_embed(), view=self)
 
     async def on_timeout(self):
         print(f"Игра #{self.game.id} прервана по таймауту.")
@@ -164,7 +180,7 @@ class GameView(View):
         return member
 
     def _make_embed(self):
-        embed = discord.Embed(title="🧮 Тетрадь", description=self.game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь (16×16)", description=self.game.render_board(), color=0xADD8E6)
         if self.game.winner:
             embed.add_field(name="Победитель", value=f"<@{self.game.winner}>")
         else:
