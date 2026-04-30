@@ -10,6 +10,8 @@ db = Database()
 gm = GameManager(db)
 
 intents = discord.Intents.default()
+intents.members = True      # <-- критически важно для get_member!
+
 bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
 
