@@ -1,4 +1,3 @@
-# ui.py
 import discord
 from discord.ui import View, Button
 import traceback
@@ -10,26 +9,27 @@ class MenuView(View):
 
     @discord.ui.button(label="🏆 Лидеры", style=discord.ButtonStyle.primary, row=0)
     async def leaders(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)  # чтобы избежать таймаута
         from main import db
         top = await db.get_top(10)
         desc = "\n".join(f"`{i}.` <@{uid}> — {w} побед" for i, (uid, w, _) in enumerate(top, 1))
         embed = discord.Embed(title="🏆 Таблица лидеров", description=desc or "Пока пусто", color=0xFFD700)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.edit_original_response(embed=embed)
 
     @discord.ui.button(label="🎮 Играть", style=discord.ButtonStyle.success, row=0)
     async def play(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=False)  # сразу откладываем ответ
         status = await self.gm.add_to_queue(interaction.user.id)
         if "начинается" in status:
-            await interaction.response.send_message(status)
+            await interaction.edit_original_response(content=status)
             gid = self.gm.player_game[interaction.user.id]
             game = self.gm.games[gid]
-            # Отправляем игру в ЛС обоим игрокам
+            # Отправляем игру в ЛС обоим игрокам (может занять время)
             await self._send_dm_to_players(game)
         else:
-            await interaction.response.send_message(status, ephemeral=True)
+            await interaction.edit_original_response(content=status)
 
     async def _send_dm_to_players(self, game):
-        """Отправляет доску и кнопки в ЛС каждому игроку, с логами ошибок."""
         from main import bot
         for pid in list(game.players):
             user = bot.get_user(pid) or await bot.fetch_user(pid)
@@ -37,7 +37,6 @@ class MenuView(View):
                 print(f"❌ Не удалось найти пользователя {pid}")
                 continue
             try:
-                # Создаём DM-канал, если его нет
                 if user.dm_channel is None:
                     await user.create_dm()
                 dm_channel = user.dm_channel
@@ -62,38 +61,38 @@ class MenuView(View):
 
     @discord.ui.button(label="❓ Правила", style=discord.ButtonStyle.secondary, row=0)
     async def rules(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
         text = ("**Правила**\n• Поле 8×8\n• У каждого своя фигура: 🔴🔺🟩🔹\n"
                 "• Ходите по очереди, выбирая клетку кнопками\n"
                 "• Победит тот, кто первым заполнит строку, столбец или диагональ")
         embed = discord.Embed(title="📖 Правила", description=text, color=0xADD8E6)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.edit_original_response(embed=embed)
 
 
 class GameView(View):
-    """View для конкретного игрока, но при ходе обновляет сообщения обоих."""
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=600)  # 10 минут на игру
+        super().__init__(timeout=600)
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        # Кнопки столбцов A-D (ряд 0)
+        # Столбцы A-D
         for col in ["A", "B", "C", "D"]:
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=0)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
-        # Кнопки столбцов E-H (ряд 1)
+        # Столбцы E-H
         for col in ["E", "F", "G", "H"]:
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=1)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
-        # Кнопки строк 1-4 (ряд 2)
+        # Строки 1-4
         for r in range(1, 5):
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=2)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
-        # Кнопки строк 5-8 (ряд 3)
+        # Строки 5-8
         for r in range(5, 9):
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=3)
             btn.callback = self.row_callback(r)
@@ -117,18 +116,18 @@ class GameView(View):
                 return await interaction.response.send_message("Сначала выберите столбец", ephemeral=True)
             coord = f"{self.selected_col}{row}"
             self.selected_col = None
+            # Делаем ход
             result, game = await self.gm.make_move(interaction.user.id, coord)
-            # Обновить сообщения у обоих игроков
+            # Обновляем сообщения у обоих игроков
             await self._update_both_messages()
-            # Если игра окончена, сообщения уже без кнопок
             if game and game.winner:
                 self.stop()
+                await interaction.response.edit_message(content="Игра окончена!", embed=self._make_embed(), view=None)
             else:
                 await interaction.response.edit_message(content=result, embed=self._make_embed(), view=self)
         return callback
 
     async def _update_both_messages(self):
-        """Обновляет сообщения в ЛС у обоих игроков актуальным состоянием."""
         from main import bot
         for pid in self.game.players:
             msg_id = self.game.player_messages.get(pid)
@@ -145,7 +144,6 @@ class GameView(View):
                 if self.game.winner:
                     await msg.edit(embed=embed, view=None)
                 else:
-                    # Только у того, чей ход, должны быть кнопки
                     if pid == self.game.turn:
                         await msg.edit(embed=embed, view=self)
                     else:
