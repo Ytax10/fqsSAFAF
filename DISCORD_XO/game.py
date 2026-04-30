@@ -77,18 +77,19 @@ class Game:
         return True
 
     def render_board(self):
-        # Заголовок: первые 2 пробела (под двузначные номера строк), затем блоки по 3 символа: " A "
-        header = "  " + "".join(f" {col} " for col in COLS)
+        # Тонкий неразрывный пробел для выравнивания (ширина ~ обычного пробела, но не переносится)
+        THIN = '\u2009'
+        # Заголовок: начальный отступ 3 пробела, затем буквы с THIN и обычным пробелом между ними
+        header = "   " + " ".join(f"{col}{THIN}" for col in COLS)
         lines = [header]
         for i in range(SIZE):
             row_cells = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
-                # Каждая клетка: эмодзи + пробел (3 символа)
-                row_cells.append(self.piece_of[pid] if pid else EMPTY + " ")
-            # Номер строки: две цифры + пробел (3 символа), затем клетки подряд без лишних разделителей
-            line = f"{i+1:2} " + "".join(cell for cell in row_cells)
-            lines.append(line)
+                # Эмодзи + THIN для выравнивания
+                row_cells.append(self.piece_of[pid] if pid else EMPTY + THIN)
+            # Номер строки: 2 символа + обычный пробел (3 символа), затем клетки через обычный пробел
+            lines.append(f"{i+1:2} " + " ".join(row_cells))
         return "```\n" + "\n".join(lines) + "```"
 
 
