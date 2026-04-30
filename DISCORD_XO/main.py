@@ -1,7 +1,6 @@
 import discord
 from discord import app_commands
 import os
-import traceback
 from database import Database
 from game import GameManager
 from ui import MenuView
@@ -10,7 +9,7 @@ db = Database()
 gm = GameManager(db)
 
 intents = discord.Intents.default()
-intents.members = True      # <-- критически важно для get_member!
+intents.members = True
 
 bot = discord.Client(intents=intents)
 tree = app_commands.CommandTree(bot)
@@ -24,6 +23,12 @@ async def menu(interaction: discord.Interaction):
     )
     view = MenuView(gm)
     await interaction.response.send_message(embed=embed, view=view)
+
+@tree.command(name="exit", description="Выйти из текущей игры или очереди")
+async def exit_game(interaction: discord.Interaction):
+    user_id = interaction.user.id
+    result = await gm.player_exit(user_id)
+    await interaction.response.send_message(result, ephemeral=True)
 
 @bot.event
 async def on_ready():
