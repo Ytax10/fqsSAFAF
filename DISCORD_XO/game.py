@@ -2,8 +2,9 @@ import asyncio, random
 from typing import Dict, Optional
 
 SIZE = 16
-COLS = [chr(ord('A') + i) for i in range(SIZE)]   # A..P
-PIECES = ["🔴", "🔺", "🟩", "🔹"]
+COLS = [chr(ord('A')+i) for i in range(SIZE)]   # A..P
+ROWS = list(range(1, SIZE+1))
+PIECES = ["🔴","🔺","🟩","🔹","⭐","💎","🔥","⚡"]  # 8 фигур, хватит на 2 игроков
 EMPTY = "⬜"
 
 class Game:
@@ -11,9 +12,10 @@ class Game:
         self.id = gid
         self.players = {p1_id, p2_id}
         self.guild = guild
-        pieces = list(PIECES)
-        random.shuffle(pieces)
-        self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
+        # Выдаём случайные разные фигуры
+        available = list(PIECES)
+        random.shuffle(available)
+        self.piece_of = {p1_id: available[0], p2_id: available[1]}
         self.grid = [[None]*SIZE for _ in range(SIZE)]
         self.turn = p1_id
         self.winner = None
@@ -41,25 +43,28 @@ class Game:
         return self.piece_of[pid]
 
     def _check_win(self, pid, r, c):
-        # строка
-        if all(self.grid[r][x] == pid for x in range(SIZE)): return True
-        # столбец
-        if all(self.grid[x][c] == pid for x in range(SIZE)): return True
-        # главная диагональ
-        if r == c and all(self.grid[i][i] == pid for i in range(SIZE)): return True
-        # побочная диагональ
-        if r + c == SIZE - 1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
+        # Строка
+        if all(self.grid[r][x] == pid for x in range(SIZE)):
+            return True
+        # Столбец
+        if all(self.grid[x][c] == pid for x in range(SIZE)):
+            return True
+        # Главная диагональ (r == c)
+        if r == c and all(self.grid[i][i] == pid for i in range(SIZE)):
+            return True
+        # Побочная диагональ (r + c == SIZE-1)
+        if r + c == SIZE - 1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)):
+            return True
         return False
 
     def render_board(self):
-        # уменьшим шрифт "шапки" для вместимости
-        lines = ["`" + " ".join(COLS) + "`"]
+        lines = ["`"+" ".join(COLS)+"`"]
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row.append(self.piece_of[pid] if pid else EMPTY)
-            lines.append(f"`{i+1:2d}` " + "".join(row))   # номер строки с выравниванием
+            lines.append(f"`{i+1}` "+"".join(row))
         return "\n".join(lines)
 
 
