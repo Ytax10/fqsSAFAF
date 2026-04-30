@@ -55,19 +55,21 @@ class Game:
                 return next(iter(self.players))
         return None
 
-    def render_board(self):
-        # Компактная сетка без пробелов между ячейками – не требует горизонтальной прокрутки
-        header_cells = [f"[{col}]" for col in COLS]
-        header = "  " + "".join(header_cells)    # два пробела вместо номеров строк
-        lines = [header]
-        for i in range(SIZE):
-            row_cells = []
-            for j in range(SIZE):
-                pid = self.grid[i][j]
-                cell_content = self.piece_of[pid] if pid else EMPTY
-                row_cells.append(f"[{cell_content}]")
-            lines.append(f"{i+1:2}" + "".join(row_cells))
-        return "```\n" + "\n".join(lines) + "```"
+def render_board(self):
+    NBSP = '\u00a0'
+    # Заголовок: для каждой буквы делаем "буква + обычный пробел + NBSP" (3 символа), затем разделяем обычным пробелом
+    header_cells = [f"{col} {NBSP}" for col in COLS]   # B   (B, пробел, неразрывный пробел)
+    # Начальный отступ: 4 пробела (под двузначный номер строки + разделитель)
+    header = "    " + " ".join(header_cells)
+    lines = [header]
+    for i in range(SIZE):
+        row_cells = []
+        for j in range(SIZE):
+            pid = self.grid[i][j]
+            row_cells.append(self.piece_of[pid] if pid else EMPTY)   # эмодзи = 2 символа
+        # Номер строки: два символа + обычный пробел + NBSP, чтобы занять ровно 4 символа как у заголовка
+        lines.append(f"{i+1:2} {NBSP}" + " ".join(row_cells))
+    return "```\n" + "\n".join(lines) + "```"
 
 
 class GameManager:
