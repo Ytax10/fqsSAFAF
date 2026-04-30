@@ -56,7 +56,7 @@ class MenuView(View):
         return member
 
     def _make_embed(self, game, pid):
-        embed = discord.Embed(title="🧮 Тетрадь 16x16", description=game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь 16×16", description=game.render_board(), color=0xADD8E6)
         embed.add_field(name="Ваша фигура", value=game.piece_of[pid])
         if game.winner:
             embed.add_field(name="Победитель", value=f"<@{game.winner}>")
@@ -75,36 +75,22 @@ class MenuView(View):
 
 class GameView(View):
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=600)
+        super().__init__(timeout=600)  # 10 минут без ходов → автоочистка
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        # Столбцы A-H (ряды 0-1, по 4 кнопки)
-        for idx, col in enumerate("ABCDEFGH"):
-            row = 0 if idx < 4 else 1
+        # Столбцы A-P, размещаем по 4 в ряд: row 0-3
+        for i, col in enumerate(["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P"]):
+            row = i // 4
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
 
-        # Столбцы I-P (ряды 2-3, по 4 кнопки)
-        for idx, col in enumerate("IJKLMNOP"):
-            row = 2 if idx < 4 else 3
-            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
-            btn.callback = self.col_callback(col)
-            self.add_item(btn)
-
-        # Строки 1-8 (ряды 4-5, по 4 кнопки)
-        for idx, r in enumerate(range(1, 9)):
-            row = 4 if idx < 4 else 5
-            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
-            btn.callback = self.row_callback(r)
-            self.add_item(btn)
-
-        # Строки 9-16 (ряды 6-7, по 4 кнопки)
-        for idx, r in enumerate(range(9, 17)):
-            row = 6 if idx < 4 else 7
+        # Строки 1-16, по 4 в ряд: row 4-7
+        for r in range(1, 17):
+            row = 4 + (r-1) // 4
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
@@ -176,7 +162,7 @@ class GameView(View):
         return member
 
     def _make_embed(self):
-        embed = discord.Embed(title="🧮 Тетрадь 16x16", description=self.game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь 16×16", description=self.game.render_board(), color=0xADD8E6)
         if self.game.winner:
             embed.add_field(name="Победитель", value=f"<@{self.game.winner}>")
         else:
