@@ -30,29 +30,33 @@ class MenuView(View):
     async def _send_dm_to_players(self, game):
         guild = game.guild
         for pid in list(game.players):
+            print(f"[INFO] Отправляю ЛС для {pid}")
             member = guild.get_member(pid) or await self._fetch_member(guild, pid)
             if not member:
+                print(f"[ERROR] Участник {pid} не найден")
                 continue
             try:
                 view = GameView(game, self.gm, pid) if pid == game.turn else None
                 embed = self._make_embed(game, pid)
                 msg = await member.send(embed=embed, view=view)
                 game.player_messages[pid] = msg.id
-                print(f"[SUCCESS] Сообщение отправлено {member.name}")
-            except:
-                print(f"[ERROR] Ошибка отправки {member.name}")
+                print(f"[SUCCESS] Сообщение отправлено {member.name} (msg id {msg.id})")
+            except discord.Forbidden:
+                print(f"[BLOCKED] ЛС закрыты у {member.name}")
+            except Exception:
+                print(f"[EXCEPTION] Ошибка отправки ЛС для {member.name}:\n{traceback.format_exc()}")
 
     async def _fetch_member(self, guild, pid):
         member = guild.get_member(pid)
         if member is None:
             try:
                 member = await guild.fetch_member(pid)
-            except:
+            except Exception:
                 pass
         return member
 
     def _make_embed(self, game, pid):
-        embed = discord.Embed(title="🧮 Тетрадь", description=game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь 16x16", description=game.render_board(), color=0xADD8E6)
         embed.add_field(name="Ваша фигура", value=game.piece_of[pid])
         if game.winner:
             embed.add_field(name="Победитель", value=f"<@{game.winner}>")
@@ -62,7 +66,7 @@ class MenuView(View):
 
     @discord.ui.button(label="❓ Правила", style=discord.ButtonStyle.secondary, row=0)
     async def rules(self, interaction: discord.Interaction, button: Button):
-        text = ("**Правила**\n• Поле 16×16\n• У каждого своя фигура из набора: 🔴🔺🟩🔹⭐💎🔥⚡\n"
+        text = ("**Правила**\n• Поле 16×16\n• У каждого своя фигура: 🔴🔺🟩🔹\n"
                 "• Ходите по очереди, выбирая клетку кнопками\n"
                 "• Победит тот, кто первым заполнит строку, столбец или диагональ")
         embed = discord.Embed(title="📖 Правила", description=text, color=0xADD8E6)
@@ -71,23 +75,36 @@ class MenuView(View):
 
 class GameView(View):
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=900)  # 15 минут для большой доски
+        super().__init__(timeout=600)
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        # Кнопки столбцов: A-P, по 4 в ряд (16 столбцов)
-        for i, col in enumerate(COLS):
-            row = i // 4         # 4 кнопки в ряду
+        # Столбцы A-H (ряды 0-1, по 4 кнопки)
+        for idx, col in enumerate("ABCDEFGH"):
+            row = 0 if idx < 4 else 1
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
 
-        # Кнопки строк: 1-16, тоже по 4 в ряд (следующие 4 ряда)
-        for r in ROWS:
-            idx = r - 1          # r от 1 до 16, индекс 0..15
-            row = 4 + idx // 4   # ряды 4,5,6,7
+        # Столбцы I-P (ряды 2-3, по 4 кнопки)
+        for idx, col in enumerate("IJKLMNOP"):
+            row = 2 if idx < 4 else 3
+            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
+            btn.callback = self.col_callback(col)
+            self.add_item(btn)
+
+        # Строки 1-8 (ряды 4-5, по 4 кнопки)
+        for idx, r in enumerate(range(1, 9)):
+            row = 4 if idx < 4 else 5
+            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
+            btn.callback = self.row_callback(r)
+            self.add_item(btn)
+
+        # Строки 9-16 (ряды 6-7, по 4 кнопки)
+        for idx, r in enumerate(range(9, 17)):
+            row = 6 if idx < 4 else 7
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
@@ -121,6 +138,7 @@ class GameView(View):
         return callback
 
     async def on_timeout(self):
+        print(f"Игра #{self.game.id} прервана по таймауту.")
         self.gm.end_game(self.game.id)
 
     async def _update_both_messages(self):
@@ -145,23 +163,22 @@ class GameView(View):
                         await msg.edit(embed=embed, view=new_view)
                     else:
                         await msg.edit(embed=embed, view=None)
-            except:
-                print(f"Ошибка обновления сообщения для {pid}")
+            except Exception:
+                print(f"Ошибка обновления сообщения для {pid}:\n{traceback.format_exc()}")
 
     async def _fetch_member(self, guild, pid):
         member = guild.get_member(pid)
         if member is None:
             try:
                 member = await guild.fetch_member(pid)
-            except:
+            except Exception:
                 pass
         return member
 
     def _make_embed(self):
-        embed = discord.Embed(title="🧮 Тетрадь", description=self.game.render_board(), color=0xADD8E6)
+        embed = discord.Embed(title="🧮 Тетрадь 16x16", description=self.game.render_board(), color=0xADD8E6)
         if self.game.winner:
             embed.add_field(name="Победитель", value=f"<@{self.game.winner}>")
         else:
             embed.add_field(name="Ходит", value=f"<@{self.game.turn}>")
         return embed
-
