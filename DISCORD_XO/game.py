@@ -47,9 +47,16 @@ class Game:
         if r+c == SIZE-1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
         return False
 
+    def remove_player(self, player_id):
+        """Удаляет игрока из игры, возвращает оставшегося игрока или None."""
+        if player_id in self.players:
+            self.players.remove(player_id)
+            if len(self.players) == 1:
+                return next(iter(self.players))
+        return None
+
     def render_board(self):
-        # Доска в моноширинном блоке кода — строки не переносятся
-        lines = ["  " + " ".join(COLS)]      # два пробела для выравнивания
+        lines = ["  " + " ".join(COLS)]
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
@@ -89,9 +96,6 @@ class GameManager:
             return "Вы покинули очередь"
         return "Вас нет в очереди"
 
-    def is_in_game(self, uid):
-        return uid in self.player_game
-
     async def make_move(self, uid, coord):
         gid = self.player_game.get(uid)
         if not gid: return "Вы не в игре", None
@@ -106,9 +110,87 @@ class GameManager:
             return f"Вы поставили {piece}. Поздравляем, вы победили!", game
         return f"Вы поставили {piece} на {coord}. Ход соперника.", game
 
+    async def player_exit(self, user_id):
+        """Выход из очереди или игры. Возвращает сообщение пользователю."""
+        # Проверяем, в очереди ли
+        if user_id in self.queue:
+            self.queue.remove(user_id)
+            return "Вы покинули очередь."
+
+        # Проверяем, в игре ли
+        gid = self.player_game.get(user_id)
+        if not gid:
+            return "Вы не находитесь в игре."
+
+        game = self.games.get(gid)
+        if not game:
+            # такого не должно быть, но чистим
+            self.player_game.pop(user_id, None)
+            return "Игра не найдена."
+
+        # Удаляем игрока
+        remaining = game.remove_player(user_id)
+        # Освобождаем вышедшего
+        self.player_game.pop(user_id, None)
+
+        # Если остался один игрок – он побеждает
+        if remaining is not None:
+            game.winner = remaining
+            await self.db.add_win(remaining)
+            # Обновляем сообщения (победителю и вышедшему)
+            await self._notify_exit(game, user_id)
+            self.end_game(gid)
+            return "Вы вышли из игры. Победитель определён."
+        else:
+            # Игроков не осталось (редкий случай) – просто удаляем игру
+            self.end_game(gid)
+            return "Вы вышли из игры. Игра завершена."
+
+    async def _notify_exit(self, game, leaver_id):
+        """Обновляет сообщения в ЛС после выхода игрока."""
+        from main import bot
+        # Обновляем сообщение вышедшему
+        try:
+            msg_id = game.player_messages.get(leaver_id)
+            if msg_id:
+                user = bot.get_user(leaver_id) or await bot.fetch_user(leaver_id)
+                if user:
+                    msg = await user.fetch_message(msg_id)
+                    embed = discord.Embed(title="Вы вышли из игры", color=0xFFA500)
+                    await msg.edit(embed=embed, view=None)
+        except Exception as e:
+            print(f"Не удалось уведомить вышедшего: {e}")
+
+        # Обновляем сообщение победителю
+        winner_id = game.winner
+        if winner_id:
+            try:
+                msg_id = game.player_messages.get(winner_id)
+                if msg_id:
+                    member = game.guild.get_member(winner_id)
+                    if not member:
+                        member = await game.guild.fetch_member(winner_id)
+                    if member:
+                        msg = await member.fetch_message(msg_id)
+                        embed = discord.Embed(
+                            title="🧮 Тетрадь",
+                            description=game.render_board(),
+                            color=0xADD8E6
+                        )
+                        embed.add_field(name="Победитель", value=f"<@{winner_id}> (соперник вышел)")
+                        await msg.edit(embed=embed, view=None)
+            except Exception as e:
+                print(f"Не удалось уведомить победителя: {e}")
+
+        # Если игра была прервана до начала (оба в очереди) - этого не случится, т.к. игра существовала.
+
     def end_game(self, game_id):
         game = self.games.pop(game_id, None)
         if game:
             for pid in game.players:
                 self.player_game.pop(pid, None)
+            # Удаляем и вышедшего тоже (он уже убран из players, но player_game[pid] уже удалён)
             print(f"Игра #{game_id} завершена и удалена.")
+
+    def is_in_game(self, uid):
+        return uid in self.player_game
