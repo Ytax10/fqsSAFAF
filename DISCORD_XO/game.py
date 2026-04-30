@@ -7,10 +7,10 @@ PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
 class Game:
-    def __init__(self, p1_id, p2_id, gid, guild):   # <-- принимаем объект guild
+    def __init__(self, p1_id, p2_id, gid, guild):
         self.id = gid
         self.players = {p1_id, p2_id}
-        self.guild = guild                           # <-- сохраняем
+        self.guild = guild
         pieces = list(PIECES)
         random.shuffle(pieces)
         self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
@@ -66,7 +66,7 @@ class GameManager:
         self.next_id = 1
         self.db = db
 
-    async def add_to_queue(self, uid, guild):      # <-- принимаем guild
+    async def add_to_queue(self, uid, guild):
         if uid in self.player_game: return "Вы уже в игре"
         if uid in self.queue: return "Вы уже в очереди"
         self.queue.append(uid)
@@ -75,7 +75,7 @@ class GameManager:
             p2 = self.queue.pop(0)
             gid = self.next_id
             self.next_id += 1
-            game = Game(p1, p2, gid, guild)        # <-- передаём объект
+            game = Game(p1, p2, gid, guild)
             self.games[gid] = game
             self.player_game[p1] = gid
             self.player_game[p2] = gid
@@ -102,5 +102,14 @@ class GameManager:
             return str(e), None
         if game.winner:
             await self.db.add_win(game.winner)
-            return f"Вы поставили {piece}. Поздравляем, вы победили!", None
+            # Игра завершена, возвращаем результат, но НЕ удаляем пока, чтобы UI мог отобразить finale
+            return f"Вы поставили {piece}. Поздравляем, вы победили!", game
         return f"Вы поставили {piece} на {coord}. Ход соперника.", game
+
+    def end_game(self, game_id):
+        """Удаляет игру и освобождает игроков."""
+        game = self.games.pop(game_id, None)
+        if game:
+            for pid in game.players:
+                self.player_game.pop(pid, None)
+            print(f"Игра #{game_id} завершена и удалена.")
