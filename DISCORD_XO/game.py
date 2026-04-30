@@ -1,8 +1,8 @@
 import asyncio, random
 from typing import Dict, Optional
 
-SIZE = 16  # <-- было 8, стало 16
-COLS = [chr(ord('A')+i) for i in range(SIZE)]   # A..P
+SIZE = 16
+COLS = [chr(ord('A')+i) for i in range(SIZE)]
 PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
@@ -48,14 +48,15 @@ class Game:
         return False
 
     def render_board(self):
-        lines = ["`"+" ".join(COLS)+"`"]
+        # Доска в моноширинном блоке кода — строки не переносятся
+        lines = ["  " + " ".join(COLS)]      # два пробела для выравнивания
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row.append(self.piece_of[pid] if pid else EMPTY)
-            lines.append(f"`{i+1:2}` "+"".join(row))   # формат номера строки под 2 символа
-        return "\n".join(lines)
+            lines.append(f"{i+1:2} " + " ".join(row))
+        return "```\n" + "\n".join(lines) + "```"
 
 
 class GameManager:
