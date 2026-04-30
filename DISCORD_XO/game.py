@@ -56,16 +56,16 @@ class Game:
         return None
 
     def render_board(self):
-        # Заголовок: отступ 3 пробела (как у двузначного номера строки + пробел)
-        header = "   " + " ".join(COLS)
+        NBSP = '\u00a0'
+        header_cells = [f"{col}{NBSP}" for col in COLS]
+        header = "   " + " ".join(header_cells)
         lines = [header]
         for i in range(SIZE):
-            row = []
+            row_cells = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
-                row.append(self.piece_of[pid] if pid else EMPTY)
-            # Номер строки: два символа с выравниванием вправо + пробел, затем клетки через пробел
-            lines.append(f"{i+1:2} " + " ".join(row))
+                row_cells.append(self.piece_of[pid] if pid else EMPTY)
+            lines.append(f"{i+1:2}{NBSP}" + " ".join(row_cells))
         return "```\n" + "\n".join(lines) + "```"
 
 
@@ -142,7 +142,6 @@ class GameManager:
 
     async def _notify_exit(self, game, leaver_id):
         from main import bot
-        # Вышедшему
         try:
             msg_id = game.player_messages.get(leaver_id)
             if msg_id:
@@ -154,7 +153,6 @@ class GameManager:
         except Exception as e:
             print(f"Не удалось уведомить вышедшего: {e}")
 
-        # Победителю
         winner_id = game.winner
         if winner_id:
             try:
