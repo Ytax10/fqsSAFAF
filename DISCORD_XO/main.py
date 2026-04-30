@@ -15,6 +15,8 @@ tree = app_commands.CommandTree(bot)
 
 @tree.command(name="menu", description="Главное меню игры Тетрадь")
 async def menu(interaction: discord.Interaction):
+    # Сразу откладываем ответ, чтобы избежать таймаута
+    await interaction.response.defer(ephemeral=False)
     try:
         embed = discord.Embed(
             title="🧮 Тетрадь по математике",
@@ -22,14 +24,12 @@ async def menu(interaction: discord.Interaction):
             color=0xADD8E6
         )
         view = MenuView(gm)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+        # Используем edit_original_response вместо send_message, так как мы уже defer()
+        await interaction.edit_original_response(embed=embed, view=view)
     except Exception as e:
-        # Выведем полную ошибку в логи Railway
         print(f"Ошибка в /menu: {traceback.format_exc()}")
-        # Попытаемся ответить пользователю
         try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message("Произошла внутренняя ошибка. Попробуйте позже.", ephemeral=True)
+            await interaction.edit_original_response(content="Произошла внутренняя ошибка. Попробуйте позже.")
         except:
             pass
 
