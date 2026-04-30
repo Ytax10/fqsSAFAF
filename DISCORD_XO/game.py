@@ -1,8 +1,9 @@
-import random
+import asyncio, random
 from typing import Dict, Optional
 
 SIZE = 16
-COLS = [chr(ord('A')+i) for i in range(SIZE)]   # A..P
+COLS = [chr(ord('A') + i) for i in range(SIZE)]   # A..P
+ROWS = list(range(1, SIZE+1))
 PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
@@ -23,6 +24,8 @@ class Game:
     def cell_index(self, coord):
         col = COLS.index(coord[0].upper())
         row = int(coord[1:]) - 1
+        if row < 0 or row >= SIZE:
+            raise ValueError("Номер ряда вне диапазона")
         return row, col
 
     def place(self, pid, coord):
@@ -44,17 +47,19 @@ class Game:
         if all(self.grid[r][x] == pid for x in range(SIZE)): return True
         if all(self.grid[x][c] == pid for x in range(SIZE)): return True
         if r == c and all(self.grid[i][i] == pid for i in range(SIZE)): return True
-        if r+c == SIZE-1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
+        if r + c == SIZE - 1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
         return False
 
     def render_board(self):
-        lines = ["`"+" ".join(COLS)+"`"]
+        # Первая строка – буквы столбцов
+        lines = ["`" + " ".join(COLS) + "`"]
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row.append(self.piece_of[pid] if pid else EMPTY)
-            lines.append(f"`{i+1:2d}` "+"".join(row))
+            # Номер строки слева
+            lines.append(f"`{i+1:2d}` " + "".join(row))
         return "\n".join(lines)
 
 
