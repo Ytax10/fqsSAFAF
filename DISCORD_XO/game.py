@@ -1,9 +1,9 @@
 import asyncio, random
 from typing import Dict, Optional
 
-SIZE = 16            # <-- было 8, стало 16
-COLS = [chr(ord('A')+i) for i in range(SIZE)]   # A..P
-PIECES = ["🔴","🔺","🟩","🔹"]
+SIZE = 16
+COLS = [chr(ord('A') + i) for i in range(SIZE)]   # A..P
+PIECES = ["🔴", "🔺", "🟩", "🔹"]
 EMPTY = "⬜"
 
 class Game:
@@ -41,20 +41,25 @@ class Game:
         return self.piece_of[pid]
 
     def _check_win(self, pid, r, c):
+        # строка
         if all(self.grid[r][x] == pid for x in range(SIZE)): return True
+        # столбец
         if all(self.grid[x][c] == pid for x in range(SIZE)): return True
+        # главная диагональ
         if r == c and all(self.grid[i][i] == pid for i in range(SIZE)): return True
-        if r+c == SIZE-1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
+        # побочная диагональ
+        if r + c == SIZE - 1 and all(self.grid[i][SIZE-1-i] == pid for i in range(SIZE)): return True
         return False
 
     def render_board(self):
-        lines = ["`"+" ".join(COLS)+"`"]
+        # уменьшим шрифт "шапки" для вместимости
+        lines = ["`" + " ".join(COLS) + "`"]
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row.append(self.piece_of[pid] if pid else EMPTY)
-            lines.append(f"`{i+1}` "+"".join(row))
+            lines.append(f"`{i+1:2d}` " + "".join(row))   # номер строки с выравниванием
         return "\n".join(lines)
 
 
