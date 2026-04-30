@@ -17,7 +17,6 @@ class MenuView(View):
 
     @discord.ui.button(label="🎮 Играть", style=discord.ButtonStyle.success, row=0)
     async def play(self, interaction: discord.Interaction, button: Button):
-        # Передаём объект гильдии прямо из interaction
         guild = interaction.guild
         status = await self.gm.add_to_queue(interaction.user.id, guild)
         if "начинается" in status:
@@ -29,13 +28,20 @@ class MenuView(View):
             await interaction.response.send_message(status, ephemeral=True)
 
     async def _send_dm_to_players(self, game):
-        """Отправляет доску и кнопки в ЛС, используя гильдию из игры."""
+        """Отправляет доску и кнопки в ЛС, получая участников через fetch_member."""
         guild = game.guild
         for pid in list(game.players):
             print(f"[INFO] Отправляю ЛС для {pid}")
+            # Пытаемся получить участника сначала из кэша, потом через API
             member = guild.get_member(pid)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(pid)
+                except Exception as e:
+                    print(f"[ERROR] Не удалось получить участника {pid}: {e}")
+                    continue
             if not member:
-                print(f"[ERROR] Участник {pid} не найден на сервере")
+                print(f"[ERROR] Участник {pid} не найден")
                 continue
             try:
                 view = GameView(game, self.gm, pid)
@@ -126,7 +132,11 @@ class GameView(View):
                 continue
             member = guild.get_member(pid)
             if not member:
-                continue
+                try:
+                    member = await guild.fetch_member(pid)
+                except Exception:
+                    print(f"Не удалось получить участника {pid} для обновления")
+                    continue
             try:
                 msg = await member.fetch_message(msg_id)
                 embed = self._make_embed()
