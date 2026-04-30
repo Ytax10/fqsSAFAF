@@ -7,20 +7,20 @@ PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
 class Game:
-    def __init__(self, p1_id, p2_id, gid):
+    def __init__(self, p1_id, p2_id, gid, guild_id):
         self.id = gid
         self.players = {p1_id, p2_id}
+        self.guild_id = guild_id          # <-- сохраняем, чтобы брать member
         pieces = list(PIECES)
         random.shuffle(pieces)
         self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
         self.grid = [[None]*SIZE for _ in range(SIZE)]
-        self.turn = p1_id          # чей ход
+        self.turn = p1_id
         self.winner = None
-        self.move_count = {p1_id: 0, p2_id: 0}
-        # Здесь будем хранить message.id для каждого игрока, чтобы обновлять их при ходе
+        self.move_count = {p1_id:0, p2_id:0}
         self.player_messages: Dict[int, int] = {}
 
-    def cell_index(self, coord: str):
+    def cell_index(self, coord):
         col = COLS.index(coord[0].upper())
         row = int(coord[1:]) - 1
         return row, col
@@ -66,7 +66,7 @@ class GameManager:
         self.next_id = 1
         self.db = db
 
-    async def add_to_queue(self, uid):
+    async def add_to_queue(self, uid, guild_id):
         if uid in self.player_game: return "Вы уже в игре"
         if uid in self.queue: return "Вы уже в очереди"
         self.queue.append(uid)
@@ -75,11 +75,10 @@ class GameManager:
             p2 = self.queue.pop(0)
             gid = self.next_id
             self.next_id += 1
-            game = Game(p1, p2, gid)
+            game = Game(p1, p2, gid, guild_id)   # передаём guild_id
             self.games[gid] = game
             self.player_game[p1] = gid
             self.player_game[p2] = gid
-            # Игра запущена, но сообщения в ЛС ещё не отправлены – это сделает ui.py
             return f"Соперник найден! Игра #{gid} начинается."
         return "Ожидание соперника..."
 
