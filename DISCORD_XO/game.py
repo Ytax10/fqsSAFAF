@@ -77,19 +77,18 @@ class Game:
         return True
 
     def render_board(self):
-        # Тонкий неразрывный пробел для выравнивания (ширина ~ обычного пробела, но не переносится)
-        THIN = '\u2009'
-        # Заголовок: начальный отступ 3 пробела, затем буквы с THIN и обычным пробелом между ними
-        header = "   " + " ".join(f"{col}{THIN}" for col in COLS)
+        # Заголовок: два пробела (под двузначный номер строки), затем буквы через пробел (каждая буква + пробел = 2 символа)
+        header = "  " + " ".join(COLS)
         lines = [header]
         for i in range(SIZE):
-            row_cells = []
+            row_emojis = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
-                # Эмодзи + THIN для выравнивания
-                row_cells.append(self.piece_of[pid] if pid else EMPTY + THIN)
-            # Номер строки: 2 символа + обычный пробел (3 символа), затем клетки через обычный пробел
-            lines.append(f"{i+1:2} " + " ".join(row_cells))
+                # эмодзи без дополнительных пробелов (ровно 2 моноширинных символа)
+                row_emojis.append(self.piece_of[pid] if pid else EMPTY)
+            # Номер строки: двузначное число + пробел (3 символа), затем эмодзи подряд
+            line = f"{i+1:2} " + "".join(row_emojis)
+            lines.append(line)
         return "```\n" + "\n".join(lines) + "```"
 
 
@@ -214,6 +213,7 @@ class GameManager:
                 else:
                     embed.add_field(name="Ходит", value=f"<@{game.turn}>")
                 if pid == game.turn and not game.winner:
+                    from ui import GameView
                     view = GameView(game, self, pid)
                     await msg.edit(embed=embed, view=view)
                 else:
