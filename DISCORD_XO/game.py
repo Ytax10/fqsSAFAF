@@ -1,25 +1,40 @@
 import asyncio, random
 import discord
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 SIZE = 16
 COLS = [chr(ord('A')+i) for i in range(SIZE)]
-PIECES = ["🔴","🔺","🟩","🔹"]
+PIECES = ["🔴","🔺","🟩","🔹"]   # 4 фигуры – хватит для 4 игроков
 EMPTY = "⬜"
 
 class Game:
-    def __init__(self, p1_id, p2_id, gid, guild):
+    def __init__(self, player_ids: List[int], gid: int, guild):
+        if len(player_ids) < 2 or len(player_ids) > 4:
+            raise ValueError("Допустимо от 2 до 4 игроков")
         self.id = gid
-        self.players = {p1_id, p2_id}
         self.guild = guild
-        pieces = list(PIECES)
-        random.shuffle(pieces)
-        self.piece_of = {p1_id: pieces[0], p2_id: pieces[1]}
+        # Перемешиваем фигуры и раздаём
+        available = list(PIECES)
+        random.shuffle(available)
+        self.piece_of = {pid: available[i] for i, pid in enumerate(player_ids)}
         self.grid = [[None]*SIZE for _ in range(SIZE)]
-        self.turn = p1_id
-        self.winner = None
-        self.move_count = {p1_id:0, p2_id:0}
+        # Порядок ходов: случайный список игроков
+        self.turn_order = list(player_ids)
+        random.shuffle(self.turn_order)
+        self.turn_index = 0
+        self.winner: Optional[int] = None
+        self.move_count = {pid: 0 for pid in player_ids}
         self.player_messages: Dict[int, int] = {}
+
+    @property
+    def players(self):
+        return set(self.turn_order)
+
+    @property
+    def turn(self):
+        if self.winner:
+            return None
+        return self.turn_order[self.turn_index]
 
     def cell_index(self, coord):
         col = COLS.index(coord[0].upper())
@@ -27,18 +42,21 @@ class Game:
         return row, col
 
     def place(self, pid, coord):
-        if pid not in self.players: raise ValueError("Не в игре")
-        if self.winner: raise ValueError("Игра окончена")
-        if pid != self.turn: raise ValueError("Не ваш ход")
+        if pid not in self.players:
+            raise ValueError("Вы не в игре")
+        if self.winner:
+            raise ValueError("Игра окончена")
+        if pid != self.turn:
+            raise ValueError("Не ваш ход")
         r, c = self.cell_index(coord)
-        if self.grid[r][c] is not None: raise ValueError("Клетка занята")
+        if self.grid[r][c] is not None:
+            raise ValueError("Клетка занята")
         self.grid[r][c] = pid
         self.move_count[pid] += 1
         if self._check_win(pid, r, c):
             self.winner = pid
         else:
-            other = next(p for p in self.players if p != pid)
-            self.turn = other
+            self.turn_index = (self.turn_index + 1) % len(self.turn_order)
         return self.piece_of[pid]
 
     def _check_win(self, pid, r, c):
@@ -49,11 +67,21 @@ class Game:
         return False
 
     def remove_player(self, player_id):
-        if player_id in self.players:
-            self.players.remove(player_id)
-            if len(self.players) == 1:
-                return next(iter(self.players))
-        return None
+        """Удаляет игрока из игры. Возвращает True, если игра продолжится, иначе False."""
+        if player_id not in self.players:
+            return False
+        # Удаляем из порядка ходов
+        self.turn_order.remove(player_id)
+        # Если был его ход, сдвигаем индекс
+        if self.turn_index >= len(self.turn_order):
+            self.turn_index = 0
+        # Удаляем из move_count (для статистики)
+        self.move_count.pop(player_id, None)
+        if len(self.turn_order) == 1:
+            # Остался один – он побеждает
+            self.winner = self.turn_order[0]
+            return False   # игра окончена
+        return True
 
     def render_board(self):
         THIN = '\u2009'
@@ -70,32 +98,49 @@ class Game:
 
 class GameManager:
     def __init__(self, db):
-        self.queue = []
+        # Очереди для каждого размера
+        self.queue_2: List[int] = []
+        self.queue_3: List[int] = []
+        self.queue_4: List[int] = []
+        self.player_queue: Dict[int, int] = {}   # user_id -> размер (2,3,4)
         self.games: Dict[int, Game] = {}
-        self.player_game: Dict[int, int] = {}
+        self.player_game: Dict[int, int] = {}    # user_id -> game_id
         self.next_id = 1
         self.db = db
 
-    async def add_to_queue(self, uid, guild):
-        if uid in self.player_game: return "Вы уже в игре"
-        if uid in self.queue: return "Вы уже в очереди"
-        self.queue.append(uid)
-        if len(self.queue) >= 2:
-            p1 = self.queue.pop(0)
-            p2 = self.queue.pop(0)
+    async def add_to_queue(self, uid, guild, size):
+        if uid in self.player_game:
+            return "Вы уже в игре"
+        if uid in self.player_queue:
+            return "Вы уже в очереди"
+        if size not in (2,3,4):
+            return "Неверный размер игры"
+
+        # Добавляем в соответствующую очередь
+        queue = getattr(self, f"queue_{size}")
+        queue.append(uid)
+        self.player_queue[uid] = size
+
+        if len(queue) >= size:
+            # Забираем нужное количество игроков
+            players = [queue.pop(0) for _ in range(size)]
+            for p in players:
+                del self.player_queue[p]
             gid = self.next_id
             self.next_id += 1
-            game = Game(p1, p2, gid, guild)
+            game = Game(players, gid, guild)
             self.games[gid] = game
-            self.player_game[p1] = gid
-            self.player_game[p2] = gid
-            return f"Соперник найден! Игра #{gid} начинается."
-        return "Ожидание соперника..."
+            for p in players:
+                self.player_game[p] = gid
+            return f"Соперники найдены! Игра #{gid} ({size} игроков) начинается."
+        return f"Вы в очереди ({size} игроков). Ожидание соперников..."
 
     async def remove_from_queue(self, uid):
-        if uid in self.queue:
-            self.queue.remove(uid)
-            return "Вы покинули очередь"
+        if uid in self.player_queue:
+            size = self.player_queue.pop(uid)
+            queue = getattr(self, f"queue_{size}")
+            queue.remove(uid)
+            return f"Вы покинули очередь ({size} игроков)"
         return "Вас нет в очереди"
 
     async def make_move(self, uid, coord):
@@ -110,12 +155,12 @@ class GameManager:
         if game.winner:
             await self.db.add_win(game.winner)
             return f"Вы поставили {piece}. Поздравляем, вы победили!", game
-        return f"Вы поставили {piece} на {coord}. Ход соперника.", game
+        return f"Вы поставили {piece} на {coord}. Ход передан следующему игроку.", game
 
     async def player_exit(self, user_id):
-        if user_id in self.queue:
-            self.queue.remove(user_id)
-            return "Вы покинули очередь."
+        # Проверка очередей
+        if user_id in self.player_queue:
+            return await self.remove_from_queue(user_id)
 
         gid = self.player_game.get(user_id)
         if not gid:
@@ -126,21 +171,26 @@ class GameManager:
             self.player_game.pop(user_id, None)
             return "Игра не найдена."
 
-        remaining = game.remove_player(user_id)
+        # Удаляем игрока из игры
+        game_continues = game.remove_player(user_id)
         self.player_game.pop(user_id, None)
 
-        if remaining is not None:
-            game.winner = remaining
-            await self.db.add_win(remaining)
-            await self._notify_exit(game, user_id)
-            self.end_game(gid)
-            return "Вы вышли из игры. Победитель определён."
-        else:
+        if not game_continues:
+            # Игра завершилась (остался 1 или 0 игроков)
+            winner = game.winner
+            if winner:
+                await self.db.add_win(winner)
+                await self._notify_exit(game, user_id, winner)
             self.end_game(gid)
             return "Вы вышли из игры. Игра завершена."
+        else:
+            # Игра продолжается, обновим сообщения всем
+            await self._notify_exit(game, user_id, None)
+            return "Вы вышли из игры. Игра продолжается."
 
-    async def _notify_exit(self, game, leaver_id):
+    async def _notify_exit(self, game, leaver_id, winner_id=None):
         from main import bot
+        # Уведомление вышедшему
         try:
             msg_id = game.player_messages.get(leaver_id)
             if msg_id:
@@ -150,27 +200,39 @@ class GameManager:
                     embed = discord.Embed(title="Вы вышли из игры", color=0xFFA500)
                     await msg.edit(embed=embed, view=None)
         except Exception as e:
-            print(f"Не удалось уведомить вышедшего: {e}")
+            print(f"Ошибка уведомления вышедшему: {e}")
 
-        winner_id = game.winner
-        if winner_id:
+        # Уведомление оставшимся
+        for pid in list(game.players):
+            if pid == leaver_id:
+                continue
             try:
-                msg_id = game.player_messages.get(winner_id)
-                if msg_id:
-                    member = game.guild.get_member(winner_id)
-                    if not member:
-                        member = await game.guild.fetch_member(winner_id)
-                    if member:
-                        msg = await member.fetch_message(msg_id)
-                        embed = discord.Embed(
-                            title="🧮 Тетрадь",
-                            description=game.render_board(),
-                            color=0xADD8E6
-                        )
-                        embed.add_field(name="Победитель", value=f"<@{winner_id}> (соперник вышел)")
-                        await msg.edit(embed=embed, view=None)
+                msg_id = game.player_messages.get(pid)
+                if not msg_id:
+                    continue
+                member = game.guild.get_member(pid)
+                if not member:
+                    member = await game.guild.fetch_member(pid)
+                if not member:
+                    continue
+                msg = await member.fetch_message(msg_id)
+                embed = discord.Embed(
+                    title="🧮 Тетрадь",
+                    description=game.render_board(),
+                    color=0xADD8E6
+                )
+                if winner_id:
+                    embed.add_field(name="Победитель", value=f"<@{winner_id}> (соперник вышел)")
+                else:
+                    embed.add_field(name="Ходит", value=f"<@{game.turn}>")
+                # Нужно обновить View: если сейчас ход этого игрока – показать кнопки
+                if pid == game.turn and not game.winner:
+                    view = GameView(game, self, pid)
+                    await msg.edit(embed=embed, view=view)
+                else:
+                    await msg.edit(embed=embed, view=None)
             except Exception as e:
-                print(f"Не удалось уведомить победителя: {e}")
+                print(f"Ошибка уведомления игрока {pid}: {e}")
 
     def end_game(self, game_id):
         game = self.games.pop(game_id, None)
