@@ -6,28 +6,26 @@ from game import Game
 
 app = FastAPI()
 
-# ------------------- Разрешаем Discord встраивать приложение (iframe) -------------------
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+# ---------- Middleware для разрешения Discord встраивать iframe ----------
+class FrameAllowMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        response.headers["X-Frame-Options"] = "ALLOW-FROM https://discord.com"
+        # Главный заголовок, который требует Discord
         response.headers["Content-Security-Policy"] = "frame-ancestors https://discord.com;"
-        response.headers["Access-Control-Allow-Origin"] = "https://discord.com"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
-app.add_middleware(SecurityHeadersMiddleware)
+# Добавляем ДО монтирования статики
+app.add_middleware(FrameAllowMiddleware)
 
-# ------------------- Монтируем папку static в корень -------------------
+# Монтируем папку static в корень (отдаёт index.html)
 app.mount("/", StaticFiles(directory="../static", html=True), name="static")
 
-# ------------------- Хранилище игр -------------------
+# ---------- Игровая логика (без изменений) ----------
 games = {}
-queue = []                     # пары (user_id, websocket)
-connections = {}               # user_id -> websocket
+queue = []
+connections = {}
 next_game_id = 1
 
-# ------------------- WebSocket эндпоинт -------------------
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     global next_game_id
@@ -42,14 +40,12 @@ async def ws_endpoint(websocket: WebSocket):
     connections[user_id] = websocket
 
     if queue:
-        # Забираем соперника из очереди
         opp_id, opp_ws = queue.pop(0)
         game_id = next_game_id
         next_game_id += 1
         game = Game(opp_id, user_id, game_id)
         games[game_id] = game
 
-        # Отправляем старт обоим
         await opp_ws.send_json({
             "type": "start", "your_turn": True,
             "piece": game.piece_of[opp_id], "state": game.state_dict()
@@ -58,15 +54,12 @@ async def ws_endpoint(websocket: WebSocket):
             "type": "start", "your_turn": False,
             "piece": game.piece_of[user_id], "state": game.state_dict()
         })
-
-        # Запускаем циклы приёма сообщений
         asyncio.create_task(player_loop(opp_ws, opp_id, game_id))
         asyncio.create_task(player_loop(websocket, user_id, game_id))
     else:
         queue.append((user_id, websocket))
         await websocket.send_json({"type": "waiting"})
 
-# ------------------- Цикл обработки ходов игрока -------------------
 async def player_loop(ws: WebSocket, user_id: str, game_id: int):
     try:
         while True:
@@ -84,14 +77,12 @@ async def player_loop(ws: WebSocket, user_id: str, game_id: int):
                 await ws.send_json({"type": "error", "message": str(e)})
                 continue
 
-            # Рассылаем обновление всем игрокам
             state = game.state_dict()
             for pid in game.players:
                 if pid in connections:
                     await connections[pid].send_json({"type": "update", "state": state})
 
             if game.winner:
-                # Финальное сообщение
                 for pid in game.players:
                     if pid in connections:
                         await connections[pid].send_json({
@@ -111,7 +102,6 @@ async def player_loop(ws: WebSocket, user_id: str, game_id: int):
         global queue
         queue = [(uid, w) for uid, w in queue if uid != user_id]
 
-# ------------------- Удаление игры через 60 секунд -------------------
 async def cleanup_game(game_id):
     await asyncio.sleep(60)
     game = games.pop(game_id, None)
