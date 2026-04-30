@@ -28,7 +28,6 @@ class MenuView(View):
             await interaction.response.send_message(status, ephemeral=True)
 
     async def _send_dm_to_players(self, game):
-        """Отправляет игру в ЛС: кнопки только тому, чей ход."""
         guild = game.guild
         for pid in list(game.players):
             print(f"[INFO] Отправляю ЛС для {pid}")
@@ -37,7 +36,6 @@ class MenuView(View):
                 print(f"[ERROR] Участник {pid} не найден")
                 continue
             try:
-                # Кнопки получает только тот, чья очередь
                 view = GameView(game, self.gm, pid) if pid == game.turn else None
                 embed = self._make_embed(game, pid)
                 msg = await member.send(embed=embed, view=view)
@@ -49,7 +47,6 @@ class MenuView(View):
                 print(f"[EXCEPTION] Ошибка отправки ЛС для {member.name}:\n{traceback.format_exc()}")
 
     async def _fetch_member(self, guild, pid):
-        """Пытается получить участника сначала из кэша, потом через API."""
         member = guild.get_member(pid)
         if member is None:
             try:
@@ -78,7 +75,7 @@ class MenuView(View):
 
 class GameView(View):
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=600)
+        super().__init__(timeout=600)   # 10 минут без ходов → автоочистка
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
@@ -103,7 +100,6 @@ class GameView(View):
 
     def col_callback(self, col):
         async def callback(interaction: discord.Interaction):
-            # Ход может сделать только владелец этой View и только в свою очередь
             if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
                 return await interaction.response.send_message("Не ваш ход", ephemeral=True)
             self.selected_col = col
@@ -121,18 +117,22 @@ class GameView(View):
             coord = f"{self.selected_col}{row}"
             self.selected_col = None
             result, game = await self.gm.make_move(interaction.user.id, coord)
-            # После хода обновляем сообщения у обоих (создадим новую View для нового ходящего)
             await self._update_both_messages()
             if game and game.winner:
                 self.stop()
-                # Не отправляем view=None, так как игру мы уже завершили
+                # Убираем игру из памяти
+                self.gm.end_game(self.game.id)
                 await interaction.response.edit_message(content="Игра окончена!", embed=self._make_embed(), view=None)
             else:
                 await interaction.response.edit_message(content=result, embed=self._make_embed(), view=self)
         return callback
 
+    async def on_timeout(self):
+        """Вызывается, если за 10 минут никто не сделал ход."""
+        print(f"Игра #{self.game.id} прервана по таймауту.")
+        self.gm.end_game(self.game.id)
+
     async def _update_both_messages(self):
-        """Обновляет ЛС обоих игроков: создаёт новую View для того, кто ходит."""
         guild = self.game.guild
         for pid in self.game.players:
             msg_id = self.game.player_messages.get(pid)
@@ -149,7 +149,6 @@ class GameView(View):
                 if self.game.winner:
                     await msg.edit(embed=embed, view=None)
                 else:
-                    # Кнопки только тому, кто сейчас ходит, и создаём новую View для него
                     if pid == self.game.turn:
                         new_view = GameView(self.game, self.gm, pid)
                         await msg.edit(embed=embed, view=new_view)
@@ -159,7 +158,6 @@ class GameView(View):
                 print(f"Ошибка обновления сообщения для {pid}:\n{traceback.format_exc()}")
 
     async def _fetch_member(self, guild, pid):
-        """Запасной метод получения участника."""
         member = guild.get_member(pid)
         if member is None:
             try:
@@ -175,4 +173,3 @@ class GameView(View):
         else:
             embed.add_field(name="Ходит", value=f"<@{self.game.turn}>")
         return embed
-
