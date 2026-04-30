@@ -66,7 +66,7 @@ class MenuView(View):
 
     @discord.ui.button(label="❓ Правила", style=discord.ButtonStyle.secondary, row=0)
     async def rules(self, interaction: discord.Interaction, button: Button):
-        text = ("**Правила**\n• Поле 8×8\n• У каждого своя фигура: 🔴🔺🟩🔹\n"
+        text = ("**Правила**\n• Поле 16×16\n• У каждого своя фигура: 🔴🔺🟩🔹\n"
                 "• Ходите по очереди, выбирая клетку кнопками\n"
                 "• Победит тот, кто первым заполнит строку, столбец или диагональ")
         embed = discord.Embed(title="📖 Правила", description=text, color=0xADD8E6)
@@ -75,26 +75,25 @@ class MenuView(View):
 
 class GameView(View):
     def __init__(self, game, gm, viewer_id):
-        super().__init__(timeout=600)   # 10 минут без ходов → автоочистка
+        super().__init__(timeout=600)
         self.game = game
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
 
-        for col in ["A", "B", "C", "D"]:
-            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=0)
+        # Столбцы: 4 ряда по 4 кнопки (A-D, E-H, I-L, M-P)
+        cols = [chr(ord('A')+i) for i in range(16)]
+        for i, col in enumerate(cols):
+            row = i // 4          # 0,1,2,3
+            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
-        for col in ["E", "F", "G", "H"]:
-            btn = Button(label=col, style=discord.ButtonStyle.secondary, row=1)
-            btn.callback = self.col_callback(col)
-            self.add_item(btn)
-        for r in range(1, 5):
-            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=2)
-            btn.callback = self.row_callback(r)
-            self.add_item(btn)
-        for r in range(5, 9):
-            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=3)
+
+        # Строки: 4 ряда по 4 кнопки (1-4, 5-8, 9-12, 13-16)
+        for i in range(16):
+            r = i + 1
+            row = 4 + i // 4      # 4,5,6,7
+            btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
 
@@ -120,7 +119,6 @@ class GameView(View):
             await self._update_both_messages()
             if game and game.winner:
                 self.stop()
-                # Убираем игру из памяти
                 self.gm.end_game(self.game.id)
                 await interaction.response.edit_message(content="Игра окончена!", embed=self._make_embed(), view=None)
             else:
@@ -128,7 +126,6 @@ class GameView(View):
         return callback
 
     async def on_timeout(self):
-        """Вызывается, если за 10 минут никто не сделал ход."""
         print(f"Игра #{self.game.id} прервана по таймауту.")
         self.gm.end_game(self.game.id)
 
