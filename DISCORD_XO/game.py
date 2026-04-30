@@ -1,4 +1,5 @@
 import asyncio, random
+import discord          # <-- добавляем, чтобы работал discord.Embed
 from typing import Dict, Optional
 
 SIZE = 16
@@ -111,45 +112,35 @@ class GameManager:
         return f"Вы поставили {piece} на {coord}. Ход соперника.", game
 
     async def player_exit(self, user_id):
-        """Выход из очереди или игры. Возвращает сообщение пользователю."""
-        # Проверяем, в очереди ли
         if user_id in self.queue:
             self.queue.remove(user_id)
             return "Вы покинули очередь."
 
-        # Проверяем, в игре ли
         gid = self.player_game.get(user_id)
         if not gid:
             return "Вы не находитесь в игре."
 
         game = self.games.get(gid)
         if not game:
-            # такого не должно быть, но чистим
             self.player_game.pop(user_id, None)
             return "Игра не найдена."
 
-        # Удаляем игрока
         remaining = game.remove_player(user_id)
-        # Освобождаем вышедшего
         self.player_game.pop(user_id, None)
 
-        # Если остался один игрок – он побеждает
         if remaining is not None:
             game.winner = remaining
             await self.db.add_win(remaining)
-            # Обновляем сообщения (победителю и вышедшему)
             await self._notify_exit(game, user_id)
             self.end_game(gid)
             return "Вы вышли из игры. Победитель определён."
         else:
-            # Игроков не осталось (редкий случай) – просто удаляем игру
             self.end_game(gid)
             return "Вы вышли из игры. Игра завершена."
 
     async def _notify_exit(self, game, leaver_id):
-        """Обновляет сообщения в ЛС после выхода игрока."""
         from main import bot
-        # Обновляем сообщение вышедшему
+        # Вышедшему
         try:
             msg_id = game.player_messages.get(leaver_id)
             if msg_id:
@@ -161,7 +152,7 @@ class GameManager:
         except Exception as e:
             print(f"Не удалось уведомить вышедшего: {e}")
 
-        # Обновляем сообщение победителю
+        # Победителю
         winner_id = game.winner
         if winner_id:
             try:
@@ -182,14 +173,11 @@ class GameManager:
             except Exception as e:
                 print(f"Не удалось уведомить победителя: {e}")
 
-        # Если игра была прервана до начала (оба в очереди) - этого не случится, т.к. игра существовала.
-
     def end_game(self, game_id):
         game = self.games.pop(game_id, None)
         if game:
             for pid in game.players:
                 self.player_game.pop(pid, None)
-            # Удаляем и вышедшего тоже (он уже убран из players, но player_game[pid] уже удалён)
             print(f"Игра #{game_id} завершена и удалена.")
 
     def is_in_game(self, uid):
