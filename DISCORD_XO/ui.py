@@ -28,11 +28,10 @@ class MenuView(View):
             await interaction.response.send_message(status, ephemeral=True)
 
     async def _send_dm_to_players(self, game):
-        """Отправляет игру в ЛС всем игрокам, используя get_member (работает с members intent)."""
         guild = game.guild
         for pid in list(game.players):
             print(f"[INFO] Отправляю ЛС для {pid}")
-            member = guild.get_member(pid)     # теперь точно найдётся
+            member = guild.get_member(pid)
             if not member:
                 print(f"[ERROR] Участник {pid} не найден на сервере")
                 continue
@@ -72,18 +71,23 @@ class GameView(View):
         self.gm = gm
         self.viewer_id = viewer_id
         self.selected_col = None
+        self._add_column_buttons()
 
-        # Столбцы A-P: 4 ряда по 4 кнопки
+    def _add_column_buttons(self):
+        """Добавляет кнопки столбцов A-P (4 ряда по 4), максимум = 4 ряд."""
+        self.clear_items()
         cols = [chr(ord('A')+i) for i in range(16)]
         for i, col in enumerate(cols):
-            row_idx = i // 4
+            row_idx = i // 4           # 0,1,2,3
             btn = Button(label=col, style=discord.ButtonStyle.secondary, row=row_idx)
             btn.callback = self.col_callback(col)
             self.add_item(btn)
 
-        # Строки 1-16: 4 ряда по 4 кнопки (ряды с 4 по 7)
+    def _add_row_buttons(self):
+        """Заменяет столбцы на кнопки строк 1-16 (4 ряда по 4)."""
+        self.clear_items()
         for r in range(1, 17):
-            row_idx = 4 + (r-1)//4
+            row_idx = (r-1)//4        # 0,1,2,3
             btn = Button(label=str(r), style=discord.ButtonStyle.primary, row=row_idx)
             btn.callback = self.row_callback(r)
             self.add_item(btn)
@@ -93,6 +97,7 @@ class GameView(View):
             if interaction.user.id != self.game.turn or interaction.user.id != self.viewer_id:
                 return await interaction.response.send_message("Не ваш ход", ephemeral=True)
             self.selected_col = col
+            self._add_row_buttons()               # переключаемся на кнопки строк
             embed = self._make_embed()
             embed.set_footer(text=f"Выбран столбец {col}. Выберите строку.")
             await interaction.response.edit_message(embed=embed, view=self)
@@ -106,7 +111,10 @@ class GameView(View):
                 return await interaction.response.send_message("Сначала выберите столбец", ephemeral=True)
             coord = f"{self.selected_col}{row}"
             self.selected_col = None
+            # Делаем ход
             result, game = await self.gm.make_move(interaction.user.id, coord)
+            # После хода возвращаем столбцы
+            self._add_column_buttons()
             await self._update_both_messages()
             if game and game.winner:
                 self.stop()
@@ -126,9 +134,8 @@ class GameView(View):
             msg_id = self.game.player_messages.get(pid)
             if not msg_id:
                 continue
-            member = guild.get_member(pid)    # теперь надёжно
+            member = guild.get_member(pid)
             if not member:
-                print(f"Не удалось найти участника {pid} для обновления")
                 continue
             try:
                 msg = await member.fetch_message(msg_id)
