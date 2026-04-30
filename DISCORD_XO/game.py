@@ -1,8 +1,8 @@
 import asyncio, random
 from typing import Dict, Optional
 
-SIZE = 8
-COLS = [chr(ord('A')+i) for i in range(SIZE)]
+SIZE = 16            # <-- было 8, стало 16
+COLS = [chr(ord('A')+i) for i in range(SIZE)]   # A..P
 PIECES = ["🔴","🔺","🟩","🔹"]
 EMPTY = "⬜"
 
@@ -102,12 +102,10 @@ class GameManager:
             return str(e), None
         if game.winner:
             await self.db.add_win(game.winner)
-            # Игра завершена, возвращаем результат, но НЕ удаляем пока, чтобы UI мог отобразить finale
             return f"Вы поставили {piece}. Поздравляем, вы победили!", game
         return f"Вы поставили {piece} на {coord}. Ход соперника.", game
 
     def end_game(self, game_id):
-        """Удаляет игру и освобождает игроков."""
         game = self.games.pop(game_id, None)
         if game:
             for pid in game.players:
