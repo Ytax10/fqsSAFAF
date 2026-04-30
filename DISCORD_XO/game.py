@@ -1,5 +1,5 @@
 import asyncio, random
-import discord          # <-- добавляем, чтобы работал discord.Embed
+import discord
 from typing import Dict, Optional
 
 SIZE = 16
@@ -49,7 +49,6 @@ class Game:
         return False
 
     def remove_player(self, player_id):
-        """Удаляет игрока из игры, возвращает оставшегося игрока или None."""
         if player_id in self.players:
             self.players.remove(player_id)
             if len(self.players) == 1:
@@ -57,12 +56,15 @@ class Game:
         return None
 
     def render_board(self):
-        lines = ["  " + " ".join(COLS)]
+        # Заголовок: отступ 3 пробела (как у двузначного номера строки + пробел)
+        header = "   " + " ".join(COLS)
+        lines = [header]
         for i in range(SIZE):
             row = []
             for j in range(SIZE):
                 pid = self.grid[i][j]
                 row.append(self.piece_of[pid] if pid else EMPTY)
+            # Номер строки: два символа с выравниванием вправо + пробел, затем клетки через пробел
             lines.append(f"{i+1:2} " + " ".join(row))
         return "```\n" + "\n".join(lines) + "```"
 
