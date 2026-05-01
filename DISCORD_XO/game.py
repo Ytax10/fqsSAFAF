@@ -77,8 +77,8 @@ class Game:
         return True
 
     def render_board(self):
-        # Заголовок: 4 пробела, затем буквы через два пробела
-        header = "    " + "  ".join(COLS)
+        # Заголовок: 3 пробела (как "1 "), затем буквы с одним пробелом после каждой (слитно)
+        header = "   " + "".join(f"{col} " for col in COLS)
         lines = [header]
         for i in range(SIZE):
             row_emojis = []
